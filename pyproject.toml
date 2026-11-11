@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ndnel-sleep-event-sweeper"
+version = "0.1.0"
+description = "Explainable sleep event detection and scoring for lab EDF recordings (REM first)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pyedflib",
+    "python-dotenv",
+]
+
+# The code lives directly in src/, but is imported as `sleep_event_sweeper`.
+[tool.setuptools]
+packages = ["sleep_event_sweeper"]
+package-dir = { "sleep_event_sweeper" = "src" }

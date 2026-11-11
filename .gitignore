@@ -1,0 +1,26 @@
+# data and output paths
+.env
+
+# Data and anything derived from it
+*.edf
+*.bdf
+*.EDF
+*.BDF
+*.xlsx
+*.png
+out/
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
