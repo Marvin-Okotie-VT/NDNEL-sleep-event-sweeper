@@ -17,6 +17,9 @@ class ChannelMap:
     eog_right: Derivation        # right upper eye (E2 / RUE)
     eog_left: Derivation         # left lower eye  (E1 / LLE)
     chin_emg: Derivation
+    # SEEG frontal contacts (superior frontal gyrus)
+    eeg_frontal_right: Optional[Derivation] = None
+    eeg_frontal_left: Optional[Derivation] = None
     #scalp EEG - check if present in the recording before using
     eeg_frontal: Optional[Derivation] = None
     eeg_central: Optional[Derivation] = None
@@ -44,7 +47,10 @@ T03_SEEG = ChannelMap(
     eog_right=Derivation("POL RUE", "EEG A2-Ref"),
     eog_left=Derivation("POL LLE", "EEG A2-Ref"),
     chin_emg=Derivation(214, 215),   # EDFbrowser #215 - #216, both "POL EMG", pyedflib indexes from 0 so 214 = #215
-    display_uv={"eog_right": 30, "eog_left": 30, "eye_diff": 60, "eye_sum": 30, "chin_emg": 21},
+    eeg_frontal_right=Derivation("POL RSFG9", "EEG A2-Ref"),
+    eeg_frontal_left=Derivation("POL LSFG1", "EEG A2-Ref"),
+    display_uv={"eog_right": 30, "eog_left": 30, "eye_diff": 60, "eye_sum": 30,
+                "eeg_frontal_right": 100, "eeg_frontal_left": 100, "chin_emg": 21},
 )
 
 EEG_EOG_BAND = (0.2, 35.0)    
@@ -59,6 +65,8 @@ class FilterSettings:
     bands: dict = field(default_factory=lambda: {       #`bands` gives every role its band-pass. 
         "eog_right": EEG_EOG_BAND,
         "eog_left": EEG_EOG_BAND,
+        "eeg_frontal_right": EEG_EOG_BAND,
+        "eeg_frontal_left": EEG_EOG_BAND,
         "eeg_frontal": EEG_EOG_BAND,
         "eeg_central": EEG_EOG_BAND,
         "eeg_occipital": EEG_EOG_BAND,

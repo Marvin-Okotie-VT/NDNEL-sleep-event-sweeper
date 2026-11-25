@@ -16,6 +16,8 @@ ROWS = [
     ("eog_left", "Left eye (E1 / LLE)", False),
     ("eye_diff", "R - L  (eye movements add)", True),
     ("eye_sum", "(R + L)/2  (frontal EEG proxy)", True),
+    ("eeg_frontal_right", "Right superior frontal (SEEG)", False),
+    ("eeg_frontal_left", "Left superior frontal (SEEG)", False),
     ("eeg_frontal", "Frontal EEG", False),
     ("eeg_central", "Central EEG", False),
     ("eeg_occipital", "Occipital EEG", False),

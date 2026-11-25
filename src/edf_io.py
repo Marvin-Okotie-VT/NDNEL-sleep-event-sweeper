@@ -2,7 +2,7 @@
 
 Single-pass reader: the file is read front to back in large blocks (default 32 MB)
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 import os
 import numpy as np
@@ -119,9 +119,9 @@ def load(path: str, cmap: ChannelMap) -> Recording:
     # pyedflib is used for the header only (labels, rates, start time); samples come from _read_pass.
     reader = pyedflib.EdfReader(path, annotations_mode=0)   # skip EDF+ annotations
     try:
-        roles = {k: getattr(cmap, k) for k in
-                 ("eog_right", "eog_left", "chin_emg", "eeg_frontal", "eeg_central", "eeg_occipital")}
-        roles = {k: d for k, d in roles.items() if d is not None}
+        # every ChannelMap field holding a Derivation is a role to load (unset optional roles are None)
+        roles = {f.name: getattr(cmap, f.name) for f in fields(cmap)
+                 if isinstance(getattr(cmap, f.name), Derivation)}
         picks = {}                                   # role -> (plus index, minus index or None)
         for role, d in roles.items():
             ip = _resolve(reader, d.plus)  #index of the plus signal
