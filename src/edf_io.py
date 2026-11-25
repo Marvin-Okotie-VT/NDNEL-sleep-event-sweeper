@@ -117,7 +117,7 @@ def _resolve(reader: pyedflib.EdfReader, sig) -> int:
 
 def load(path: str, cmap: ChannelMap) -> Recording:
     # pyedflib is used for the header only (labels, rates, start time); samples come from _read_pass.
-    reader = pyedflib.EdfReader(path)
+    reader = pyedflib.EdfReader(path, annotations_mode=0)   # skip EDF+ annotations
     try:
         roles = {k: getattr(cmap, k) for k in
                  ("eog_right", "eog_left", "chin_emg", "eeg_frontal", "eeg_central", "eeg_occipital")}
