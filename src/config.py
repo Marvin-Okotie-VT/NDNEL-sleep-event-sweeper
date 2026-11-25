@@ -65,5 +65,52 @@ class FilterSettings:
         "chin_emg": EMG_BAND,
     })
 
+#scoring settings
+@dataclass
+class RemRules:
+    # Default (True) = AASM manual; False = binder flow chart.
+    # Epoch with REMs and low chin EMG is R even if it has a K-complex or spindle 
+    # False: a K-complex/spindle makes it N1-3 not R.
+    rem_beats_k_spindle: bool = True
+    # Look-back stops at the first epoch that fails the continuation conditions
+    # (LAMF, low chin EMG, no K-complex/spindle) 
+    # False: look-back stops only at a K-complex/spindle.
+    lookback_stops_at_continuation_fail: bool = True
+    # An arousal ends R only when slow eye movements follow it 
+    # False: any arousal ends R.
+    arousal_needs_sem_to_end_r: bool = True
+
+
+@dataclass
+class ManualCriteria:
+    """Values defined by the AASM manual(p.25-37)"""
+    rem_max_rise_s: float = 0.5            # REM initial deflection usually < 500 ms ; SEM > 500 ms 
+    majority: float = 0.5                  # "more than 50% of the epoch" (alpha -> W , LAMF -> N1)
+    first_half_s: float = 15.0             # K-complex/spindle in the first half ends R 
+    alpha_band: tuple = (8.0, 13.0)        # alpha rhythm 
+    lamf_band: tuple = (4.0, 7.0)          # LAMF: low amplitude, predominantly 4-7 Hz 
+    slow_wave_band: tuple = (0.5, 2.0)     # slow wave activity 
+    slow_wave_min_ptp_uv: float = 75.0     # slow waves > 75 uV peak-to-peak 
+    n3_min_s: float = 6.0                  # slow waves in >= 20% of the epoch = 6 s 
+    spindle_band: tuple = (11.0, 16.0)     # sleep spindle 
+    spindle_min_s: float = 0.5             # spindle duration >= 0.5 s 
+    kcomplex_min_s: float = 0.5            # K-complex total duration >= 0.5 s 
+    kcomplex_arousal_gap_s: float = 1.0    # K-complex is arousal-associated if the arousal starts <= 1 s after it 
+    arousal_min_s: float = 3.0             # EEG frequency shift lasting >= 3 s 
+    arousal_stable_sleep_s: float = 10.0   # preceded by >= 10 s of stable sleep 
+    arousal_fast_hz: float = 16.0          # shift to alpha, theta and/or > 16 Hz, not spindles 
+    arousal_emg_min_s: float = 1.0         # arousal in R also needs a chin EMG increase >= 1 s 
+    movement_min_fraction: float = 0.5     # major body movement obscures the EEG for > half the epoch 
+
+@dataclass
+class DetectorTuning:
+    """Detection settings that can be adjusted to the sessions's noise level or the subject's physiology."""
+    eye_lowpass_hz: float = 8.0            # smoothing before finding eye movements
+    eye_hysteresis_sigma: float = 2.0      # a swing only reverses after moving back >= 2 x noise
+    rem_min_amp_sigma: float = 4.5         # REM size on R - L >= 4.5 x noise 
+    rem_min_conj_ratio: float = 0.3        # smaller eye change >= 30% of the larger (both eyes move)
+    emg_low_pct: float = 25.0              # chin EMG "low": epoch RMS at or below the night's 25th percentile
+    emg_unsure_pct: float = 35.0           # 25th-35th percentile: borderline -> R?
+
 
 EPOCH_S = 30.0

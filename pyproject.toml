@@ -13,6 +13,7 @@ dependencies = [
     "matplotlib",
     "pyedflib",
     "python-dotenv",
+    "openpyxl",
 ]
 
 # The code lives directly in src/, but is imported as `sleep_event_sweeper`.
