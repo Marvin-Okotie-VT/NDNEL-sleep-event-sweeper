@@ -5,6 +5,7 @@ Sections: eye movements (REM) | chin EMG | EEG / proxy | arousals
 from dataclasses import dataclass, field
 import numpy as np
 from scipy import signal as ss
+from numpy.lib.stride_tricks import sliding_window_view
 
 from .config import DetectorTuning, ManualCriteria
 
@@ -112,5 +113,103 @@ def chin_emg_level(emg, fs, epoch_s: float):
     rank = np.argsort(np.argsort(rms))                 # 0 = lowest RMS
     pct = 100.0 * rank / max(n_epochs - 1, 1)
     return rms, pct
+
+#EEG (frontal SEEG or scalp)
+
+def _night_pct(v: np.ndarray) -> np.ndarray:
+    """Percentile of each value among the night's values (0 = lowest, 100 = highest). NaN stays NaN."""
+    out = np.full(len(v), np.nan)
+    ok = ~np.isnan(v)
+    n = int(ok.sum())
+    if n:
+        rank = np.argsort(np.argsort(v[ok]))
+        out[ok] = 100.0 * rank / max(n - 1, 1)
+    return out
+
+
+@dataclass
+class LamfResult:
+    slot_s: float               # slot j covers j*slot_s .. (j+1)*slot_s from recording start
+    rms_uv: np.ndarray          # per slot: RMS of the total band (from the spectrum)
+    entropy: np.ndarray         # per slot: spectral entropy, 0 (one bin) .. 1 (flat)
+    theta_delta: np.ndarray     # per slot: theta power / delta power
+    rms_pct: np.ndarray         # per slot: night percentiles of the three features
+    entropy_pct: np.ndarray
+    theta_delta_pct: np.ndarray
+    is_lamf: np.ndarray         # per slot: all three criteria met (False where no data)
+    n_lamf: np.ndarray          # per epoch: LAMF slots
+    n_valid: np.ndarray         # per epoch: slots with data
+    lamf: np.ndarray            # per epoch: n_lamf > majority x n_valid
+
+
+def lamf_measure(x, fs, epoch_s: float, tune=DetectorTuning(), manual=ManualCriteria()) -> LamfResult:
+    """Low amplitude, mixed frequency activity on one filtered EEG channel (uV).
+      low amplitude:    rms_uv      = sqrt(sum P df) over the total band 
+      mixed frequency:   entropy     = spectral entropy over the total band 
+      predominantly 4-7 Hz:     theta_delta = 4-7 Hz power / 0.5-2 Hz power
+    A slot is LAMF when all three pass their percentile limits; an epoch has LAMF when
+    more than half of its slots do.
+    """
+    per_epoch = int(round(epoch_s / tune.lamf_slot_s))
+    if abs(per_epoch * tune.lamf_slot_s - epoch_s) > 1e-9:
+        raise ValueError(f"epoch_s ({epoch_s}) is not a whole number of slots ({tune.lamf_slot_s} s)")
+    x = np.asarray(x, dtype=float)
+    n_epochs = int(np.ceil(len(x) / int(round(epoch_s * fs))))    
+
+    # 1. Decimate: order-8 Chebyshev low-pass at 0.8 x new Nyquist (zero phase), keep every q-th sample.
+    q = max(1, int(round(fs / tune.lamf_ds_hz)))
+    xd = ss.decimate(x, q, ftype="iir", zero_phase=True) if q > 1 else x
+    fsd = fs / q
+    n = len(xd)
+
+    # 2. Slot grid aligned to epochs. Window = slot plus equal margins, shifted inward at the recording edges.
+    n_slots = n_epochs * per_epoch
+    nslot = int(round(tune.lamf_slot_s * fsd))
+    nwin = int(round(tune.lamf_win_s * fsd))
+    if n < nwin:
+        raise ValueError(f"recording shorter than one LAMF window ({tune.lamf_win_s} s)")
+    s0 = np.round(np.arange(n_slots) * tune.lamf_slot_s * fsd).astype(int)    # slot start samples
+    valid = s0 + nslot // 2 <= n                                             # at least half a slot of data
+    starts = np.clip(s0 - (nwin - nslot) // 2, 0, n - nwin)
+    win = sliding_window_view(xd, nwin)[starts[valid]]                       # (valid slots, nwin)
+
+    # 3. Welch per window: Hann segments of seg_s at 50% overlap, mean removed, spectra averaged (uV^2/Hz).
+    nseg = int(round(tune.lamf_seg_s * fsd))
+    f, P = ss.welch(win, fs=fsd, window="hann", nperseg=nseg, noverlap=nseg // 2,
+                    detrend="constant", axis=-1)
+    df = f[1] - f[0]
+
+    def band(lo_hi):
+        return (f >= lo_hi[0]) & (f <= lo_hi[1])
+
+    # 4. Features from the total-band bins.
+    tot = band(tune.lamf_total_band)
+    p_tot = P[:, tot].sum(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        p = P[:, tot] / p_tot[:, None]                                      # spectrum as a distribution
+        ent = -np.sum(np.where(p > 0, p * np.log(p), 0.0), axis=1) / np.log(tot.sum())
+        ent[p_tot == 0] = np.nan                                            # flat line: no spectrum
+        td = P[:, band(manual.lamf_band)].sum(axis=1) / P[:, band(manual.slow_wave_band)].sum(axis=1)
+    td[p_tot == 0] = np.nan
+
+    def per_slot(v):
+        out = np.full(n_slots, np.nan)
+        out[valid] = v
+        return out
+
+    rms_uv, entropy, theta_delta = per_slot(np.sqrt(p_tot * df)), per_slot(ent), per_slot(td)
+
+    # 5. Rank against the night.  6. Slot rule (NaN compares False).
+    rms_pct, entropy_pct, td_pct = _night_pct(rms_uv), _night_pct(entropy), _night_pct(theta_delta)
+    is_lamf = ((rms_pct <= tune.lamf_rms_max_pct) & (entropy_pct >= tune.lamf_entropy_min_pct)
+               & (td_pct >= tune.lamf_theta_delta_min_pct))
+
+    # 7. Epoch count: more than half of the epoch's slots with data.
+    n_lamf = is_lamf.reshape(n_epochs, per_epoch).sum(axis=1)
+    n_valid = valid.reshape(n_epochs, per_epoch).sum(axis=1)
+    lamf = n_lamf > manual.majority * n_valid
+
+    return LamfResult(tune.lamf_slot_s, rms_uv, entropy, theta_delta, rms_pct, entropy_pct, td_pct,
+                      is_lamf, n_lamf, n_valid, lamf)
 
 #other detectors (EEG / proxy, arousals, k2, splindles) ...

@@ -20,7 +20,7 @@ class ChannelMap:
     # SEEG frontal contacts (superior frontal gyrus)
     eeg_frontal_right: Optional[Derivation] = None
     eeg_frontal_left: Optional[Derivation] = None
-    #scalp EEG - check if present in the recording before using
+    #scalp EEG 
     eeg_frontal: Optional[Derivation] = None
     eeg_central: Optional[Derivation] = None
     eeg_occipital: Optional[Derivation] = None
@@ -111,7 +111,7 @@ class ManualCriteria:
     movement_min_fraction: float = 0.5     # major body movement obscures the EEG for > half the epoch 
 
 @dataclass
-class DetectorTuning:
+class DetectorTuning:   
     """Detection settings that can be adjusted to the sessions's noise level or the subject's physiology."""
     eye_lowpass_hz: float = 8.0            # smoothing before finding eye movements
     eye_hysteresis_sigma: float = 2.0      # a swing only reverses after moving back >= 2 x noise
@@ -119,6 +119,16 @@ class DetectorTuning:
     rem_min_conj_ratio: float = 0.3        # smaller eye change >= 30% of the larger (both eyes move)
     emg_low_pct: float = 25.0              # chin EMG "low": epoch RMS at or below the night's 25th percentile
     emg_unsure_pct: float = 35.0           # 25th-35th percentile: borderline -> R?
+
+    # LAMF (frontal)
+    lamf_ds_hz: float = 100.0              # decimate to ~100 Hz before the spectra
+    lamf_slot_s: float = 2.0               # unit counted towards "more than 50% of the epoch"
+    lamf_win_s: float = 4.0                # spectrum window centred on each slot
+    lamf_seg_s: float = 2.0                # Welch segment (0.5 Hz bins), 50% overlap
+    lamf_total_band: tuple = (0.5, 30.0)   # band for RMS, entropy and the theta/delta ratio
+    lamf_rms_max_pct: float = 50.0         # low amplitude: slot RMS at or below this night percentile
+    lamf_entropy_min_pct: float = 50.0     # mixed frequency: spectral entropy at or above this percentile
+    lamf_theta_delta_min_pct: float = 50.0 # predominantly 4-7 Hz: theta/delta at or above this percentile
 
 
 EPOCH_S = 30.0
